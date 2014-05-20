@@ -35,6 +35,8 @@ public abstract class AbstractCloudConfigServiceScanTest extends StubCloudConnec
 	public void cloudScanWithOneService() {
 		ApplicationContext testContext = getTestApplicationContext(createMysqlService("db"));
 		
+		Object x = testContext.getBean(DataSource.class);
+		System.out.println(x);
 		assertNotNull("Getting service by id", testContext.getBean("db"));
 		assertNotNull("Getting service by id and type", testContext.getBean("db", DataSource.class));		
 	}

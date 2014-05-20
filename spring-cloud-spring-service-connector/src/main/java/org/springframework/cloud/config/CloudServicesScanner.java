@@ -6,15 +6,17 @@ import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.BeanFactoryAware;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.beans.factory.support.BeanDefinitionBuilder;
+import org.springframework.beans.factory.support.BeanDefinitionRegistry;
 import org.springframework.cloud.Cloud;
 import org.springframework.cloud.CloudException;
 import org.springframework.cloud.CloudFactory;
 import org.springframework.cloud.config.java.ServiceScan;
-import org.springframework.cloud.service.AbstractCloudServiceConnectorFactory;
 import org.springframework.cloud.service.GenericCloudServiceConnectorFactory;
 import org.springframework.cloud.service.ServiceInfo;
+import org.springframework.context.annotation.ImportBeanDefinitionRegistrar;
+import org.springframework.core.type.AnnotationMetadata;
 
 /**
  * Bean factory post processor that adds a bean for each service bound to the application.
@@ -49,7 +51,7 @@ import org.springframework.cloud.service.ServiceInfo;
  * @author Jennifer Hickey
  *
  */
-public class CloudServicesScanner implements BeanFactoryPostProcessor, InitializingBean, BeanFactoryAware {
+public class CloudServicesScanner implements ImportBeanDefinitionRegistrar, InitializingBean, BeanFactoryAware {
 	private static final String CLOUD_FACTORY_BEAN_NAME = "__cloud_factory__";
 	
 	private BeanFactory beanFactory = null;
@@ -74,28 +76,32 @@ public class CloudServicesScanner implements BeanFactoryPostProcessor, Initializ
 		}
 	}
 
-	@Override
-	public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
-		registerServiceBeans(cloud, beanFactory);
-	}
+//	@Override
+//	public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
+//	}
 
-	private void registerServiceBeans(Cloud cloud, ConfigurableListableBeanFactory beanFactory) {
+    private void registerServiceBeans(Cloud cloud, BeanDefinitionRegistry registry) {
 		List<ServiceInfo> serviceInfos = cloud.getServiceInfos();
 		
 		for(ServiceInfo serviceInfo: serviceInfos) {
-			registerServiceBean(beanFactory, serviceInfo);
+			registerServiceBean(registry, serviceInfo);
 		}
 	}
 	
-	private void registerServiceBean(ConfigurableListableBeanFactory beanFactory, ServiceInfo serviceInfo) {
+	private void registerServiceBean(BeanDefinitionRegistry registry, ServiceInfo serviceInfo) {
 		try {
-			AbstractCloudServiceConnectorFactory<?> serviceFactory = new GenericCloudServiceConnectorFactory(serviceInfo.getId(), null);
-			serviceFactory.setBeanFactory(beanFactory);
-			serviceFactory.afterPropertiesSet();
-			beanFactory.registerSingleton(serviceInfo.getId(), serviceFactory);
+			BeanDefinitionBuilder definitionBuilder = BeanDefinitionBuilder.genericBeanDefinition(GenericCloudServiceConnectorFactory.class);
+			definitionBuilder.addConstructorArgValue(serviceInfo.getId());
+			definitionBuilder.addConstructorArgValue(null);
+			registry.registerBeanDefinition(serviceInfo.getId(), definitionBuilder.getBeanDefinition());
 		} catch (Exception ex) {
 			throw new CloudException("Error registering service factory", ex);
 		}
-
 	}
+
+    @Override
+    public void registerBeanDefinitions(AnnotationMetadata importingClassMetadata, BeanDefinitionRegistry registry) throws BeansException {
+        registerServiceBeans(cloud, registry);
+    }
+
 }
